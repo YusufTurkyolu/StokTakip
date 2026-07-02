@@ -1,0 +1,204 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Renkler artık Themes/LightTheme.xaml ve DarkTheme.xaml içinde tanımlıdır.
+         Buradaki tüm fırça referansları DynamicResource'tur; böylece tema
+         değiştiğinde stiller de anında yeni renklere geçer. -->
+
+    <!-- ═══════ BUTON — PRIMARY ═══════ -->
+    <Style x:Key="BtnPrimary" TargetType="Button">
+        <Setter Property="Background"   Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground"   Value="White"/>
+        <Setter Property="Padding"      Value="14,7"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="FontWeight"   Value="SemiBold"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            CornerRadius="5" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════ BUTON — DANGER ═══════ -->
+    <Style x:Key="BtnDanger" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+        <Setter Property="Background" Value="{DynamicResource DangerBrush}"/>
+    </Style>
+
+    <!-- ═══════ BUTON — SUCCESS ═══════ -->
+    <Style x:Key="BtnSuccess" TargetType="Button" BasedOn="{StaticResource BtnPrimary}">
+        <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
+    </Style>
+
+    <!-- ═══════ BUTON — GHOST (ikincil eylem) ═══════ -->
+    <Style x:Key="BtnGhost" TargetType="Button">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="Foreground"      Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"         Value="12,6"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource LightBlueBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════ TEXTBOX ═══════ -->
+    <Style x:Key="ModernTextBox" TargetType="TextBox">
+        <Setter Property="Padding"         Value="10,7"/>
+        <Setter Property="FontSize"        Value="13"/>
+        <Setter Property="Foreground"      Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="CaretBrush"      Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background"      Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="2,0"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsFocused" Value="True">
+                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════ COMBOBOX ═══════ -->
+    <Style x:Key="ModernCombo" TargetType="ComboBox">
+        <Setter Property="Padding"     Value="10,7"/>
+        <Setter Property="FontSize"    Value="13"/>
+        <Setter Property="Foreground"  Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Background"  Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    </Style>
+
+    <!-- ═══════ SEKME (TabItem) — düz, temaya duyarlı ═══════ -->
+    <Style TargetType="TabItem">
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Bd" Background="Transparent" Padding="16,8" Margin="0,0,4,0"
+                            BorderThickness="0,0,0,2" BorderBrush="Transparent"
+                            CornerRadius="4,4,0,0">
+                        <ContentPresenter ContentSource="Header"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowHoverBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══════ DATAGRID SATIR (varsayılan — rapor tablosu) ═══════ -->
+    <!-- Temel arka plan bilerek ayarlanmaz: DataGrid'in RowBackground /
+         AlternatingRowBackground değerleri normal satırlara uygulanır. Buradaki
+         tetikleyiciler (hover, kritik stok) sadece gerektiğinde arka planı ezer. -->
+    <Style TargetType="DataGridRow">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource RowHoverBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══════ DATAGRID HÜCRE — arka planı satırdan geçir, metni satırdan miras al ═══════ -->
+    <Style TargetType="DataGridCell">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="BorderBrush"     Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource LightBlueBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══════ DATAGRID SATIR — Kritik Stok Renklendirmesi (stok tablosu) ═══════ -->
+    <Style x:Key="InventoryRowStyle" TargetType="DataGridRow"
+           BasedOn="{StaticResource {x:Type DataGridRow}}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DangerBgBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══════ DATAGRID SÜTUN BAŞLIĞI ═══════ -->
+    <Style TargetType="DataGridColumnHeader">
+        <Setter Property="Background"   Value="{DynamicResource LightBlueBrush}"/>
+        <Setter Property="Foreground"   Value="{DynamicResource PrimaryBrush}"/>
+        <Setter Property="FontWeight"   Value="Bold"/>
+        <Setter Property="FontSize"     Value="12"/>
+        <Setter Property="Padding"      Value="12,9"/>
+        <Setter Property="BorderBrush"  Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+    </Style>
+
+    <!-- ═══════ KART PANELİ ═══════ -->
+    <Style x:Key="CardBorder" TargetType="Border">
+        <Setter Property="Background"      Value="{DynamicResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="8"/>
+        <Setter Property="Padding"         Value="16"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#000000" Opacity="0.05"
+                                  BlurRadius="8" ShadowDepth="2"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

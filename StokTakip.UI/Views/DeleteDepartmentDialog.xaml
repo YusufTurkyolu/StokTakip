@@ -1,0 +1,36 @@
+<Window x:Class="StokTakip.UI.Views.DeleteDepartmentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Departman Sil"
+        Width="380" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="ToolWindow"
+        Background="{DynamicResource BgBrush}">
+
+    <StackPanel Margin="28">
+        <TextBlock Text="🗑 Departman Sil" FontSize="17" FontWeight="Bold"
+                   Foreground="{DynamicResource DangerBrush}" Margin="0,0,0,6"/>
+        <TextBlock Text="Yalnızca hiç işlem görmemiş (yanlışlıkla eklenmiş) departmanlar silinebilir. İşlem geçmişi olan departmanlar korunur."
+                   FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
+                   TextWrapping="Wrap" Margin="0,0,0,18"/>
+
+        <TextBlock Text="Silinecek Departman" FontWeight="SemiBold" FontSize="12"
+                   Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+        <ComboBox x:Name="CmbDepartment"
+                  Style="{StaticResource ModernCombo}"
+                  DisplayMemberPath="Name"
+                  SelectedValuePath="Id"
+                  Margin="0,0,0,14"/>
+
+        <TextBlock x:Name="TxtError" Foreground="{DynamicResource DangerBrush}" FontSize="12"
+                   Margin="0,0,0,10" TextWrapping="Wrap" Visibility="Collapsed"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="İptal" Style="{StaticResource BtnGhost}"
+                    Margin="0,0,8,0" Click="BtnCancel_Click"/>
+            <Button Content="Sil" Style="{StaticResource BtnDanger}"
+                    Click="BtnDelete_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

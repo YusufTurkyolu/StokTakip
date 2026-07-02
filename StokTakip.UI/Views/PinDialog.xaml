@@ -1,0 +1,39 @@
+<Window x:Class="StokTakip.UI.Views.PinDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Yönetici Doğrulama"
+        Width="340" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="ToolWindow"
+        Background="{DynamicResource BgBrush}">
+
+    <StackPanel Margin="28">
+        <TextBlock Text="🔐 Yönetici PIN Girişi"
+                   FontSize="16" FontWeight="Bold"
+                   Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,6"/>
+        <TextBlock Text="Bu işlem için 4 haneli yönetici PIN'i gereklidir."
+                   FontSize="12" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap"
+                   Margin="0,0,0,18"/>
+
+        <PasswordBox x:Name="PbPin" MaxLength="4"
+                     FontSize="24" FontWeight="Bold"
+                     HorizontalContentAlignment="Center"
+                     Padding="10,8" Margin="0,0,0,6"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
+                     Background="{DynamicResource SurfaceBrush}"
+                     BorderBrush="{DynamicResource BorderBrush}"
+                     KeyDown="PbPin_KeyDown"/>
+        <TextBlock x:Name="TxtError" Text="" Foreground="{DynamicResource DangerBrush}"
+                   FontSize="12" HorizontalAlignment="Center"
+                   Margin="0,0,0,14" Visibility="Collapsed"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="İptal" Style="{StaticResource BtnGhost}"
+                    Margin="0,0,8,0" Click="BtnCancel_Click"/>
+            <Button Content="Doğrula" Style="{StaticResource BtnPrimary}"
+                    Click="BtnConfirm_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

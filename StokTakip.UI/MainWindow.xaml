@@ -1,0 +1,422 @@
+<Window x:Class="StokTakip.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:StokTakip.UI.Converters"
+        Title="Belediye Demirbaş ve Stok Takip Sistemi"
+        Height="800" Width="1200"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BgBrush}">
+
+    <Window.Resources>
+        <conv:UtcToLocalConverter x:Key="UtcToLocal"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="64"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="28"/>
+        </Grid.RowDefinitions>
+
+        <!-- ══════════════════════════════════════════
+             HEADER
+        ══════════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="{DynamicResource HeaderBgBrush}">
+            <Grid Margin="20,0">
+                <!-- Sol: Logo + Başlık -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🏛" FontSize="26" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Stok Takip Sistemi"
+                                   Foreground="{DynamicResource HeaderTextBrush}" FontSize="17" FontWeight="Bold"/>
+                        <TextBlock Text="Erenler Belediyesi Bilgi İşlem Müdürlüğü"
+                                   Foreground="{DynamicResource HeaderSubTextBrush}" FontSize="11"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Sağ: Tema + Kullanıcı + Kritik Stok Badge -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <!-- Tema geçiş butonu -->
+                    <Button x:Name="BtnTheme" Click="BtnTheme_Click" Content="🌙"
+                            Cursor="Hand" Margin="0,0,14,0" FontSize="14"
+                            VerticalAlignment="Center"
+                            ToolTip="Koyu temaya geç">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="b" CornerRadius="14" Width="36" Height="28"
+                                        Background="#26FFFFFF">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="b" Property="Background" Value="#3DFFFFFF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <TextBlock x:Name="TxtUserName"
+                               Foreground="{DynamicResource HeaderSubTextBrush}" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <Border x:Name="LowStockBadge" Visibility="Collapsed"
+                            Background="{DynamicResource DangerBrush}" CornerRadius="14" Padding="12,5"
+                            Cursor="Hand">
+                        <Border.InputBindings>
+                            <MouseBinding MouseAction="LeftClick" Command="{x:Null}"/>
+                        </Border.InputBindings>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚠  " Foreground="White" FontSize="12"/>
+                            <TextBlock x:Name="TxtBadgeCount"
+                                       Foreground="White" FontSize="12" FontWeight="Bold"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ══════════════════════════════════════════
+             ANA İÇERİK — TabControl
+        ══════════════════════════════════════════ -->
+        <TabControl Grid.Row="1" Margin="16,12,16,8"
+                    Background="Transparent" BorderThickness="0">
+
+            <!-- ─────────────────────────────────────
+                 SEKME 1: STOK DURUMU / DASHBOARD
+            ───────────────────────────────────────── -->
+            <TabItem Header="📦   Stok Durumu">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>  <!-- Araç çubuğu -->
+                        <RowDefinition Height="Auto"/>  <!-- Kritik stok uyarı paneli -->
+                        <RowDefinition Height="*"/>     <!-- DataGrid -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Araç Çubuğu -->
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}"
+                            Margin="0,0,0,10" Padding="12,10">
+                        <DockPanel>
+                            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                                <Button x:Name="BtnAddItem" Content="＋ Yeni Ürün"
+                                        Style="{StaticResource BtnSuccess}"
+                                        Click="BtnAddItem_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnStockIn" Content="⬆ Stok Girişi"
+                                        Style="{StaticResource BtnPrimary}"
+                                        Click="BtnStockIn_Click" Margin="0,0,8,0"
+                                        IsEnabled="False"/>
+                                <Button x:Name="BtnStockOut" Content="⬇ Stok Çıkışı"
+                                        Style="{StaticResource BtnPrimary}"
+                                        Click="BtnStockOut_Click" Margin="0,0,8,0"
+                                        IsEnabled="False"/>
+                                <Button x:Name="BtnDeleteItem" Content="🗑 Sil"
+                                        Style="{StaticResource BtnDanger}"
+                                        Click="BtnDeleteItem_Click"
+                                        IsEnabled="False"/>
+                                <Button x:Name="BtnAddDepartment" Content="🏢 Departman Ekle"
+                                        Style="{StaticResource BtnGhost}"
+                                        Click="BtnAddDepartment_Click" Margin="16,0,0,0"/>
+                                <Button x:Name="BtnDeleteDepartment" Content="🗑 Departman Sil"
+                                        Style="{StaticResource BtnGhost}"
+                                        Click="BtnDeleteDepartment_Click" Margin="8,0,0,0"/>
+                            </StackPanel>
+
+                            <!-- Arama -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock Text="🔍" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,6,0"/>
+                                <TextBox x:Name="TxtSearch" Width="220"
+                                         Style="{StaticResource ModernTextBox}"
+                                         TextChanged="TxtSearch_TextChanged"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Kritik Stok Uyarı Paneli -->
+                    <Border x:Name="PnlLowStock" Grid.Row="1"
+                            Background="{DynamicResource DangerBgBrush}" BorderBrush="{DynamicResource DangerBorderBrush}"
+                            BorderThickness="1" CornerRadius="6"
+                            Padding="14,10" Margin="0,0,0,10"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="⚠"
+                                       FontSize="20" Foreground="{DynamicResource DangerBrush}"
+                                       VerticalAlignment="Top" Margin="0,0,12,0"/>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="KRİTİK STOK UYARISI"
+                                           FontWeight="Bold" FontSize="13"
+                                           Foreground="{DynamicResource DangerBrush}" Margin="0,0,0,6"/>
+                                <ItemsControl x:Name="LstLowStock">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Margin="0,1" Foreground="{DynamicResource TextPrimaryBrush}">
+                                                <Run Text="•  "/>
+                                                <Run Text="{Binding ItemName}" FontWeight="SemiBold"/>
+                                                <Run Text=" — Mevcut: "/>
+                                                <Run Text="{Binding CurrentStock}"
+                                                     Foreground="{DynamicResource DangerBrush}" FontWeight="Bold"/>
+                                                <Run Text=" adet  |  Min. Eşik: "/>
+                                                <Run Text="{Binding MinimumThreshold}"/>
+                                                <Run Text=" adet"/>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Ana Stok DataGrid -->
+                    <Border Grid.Row="2" Style="{StaticResource CardBorder}" Padding="0">
+                        <DataGrid x:Name="DgInventory"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column"
+                                  RowStyle="{StaticResource InventoryRowStyle}"
+                                  SelectionChanged="DgInventory_SelectionChanged"
+                                  Background="{DynamicResource SurfaceBrush}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  RowBackground="{DynamicResource SurfaceBrush}"
+                                  AlternatingRowBackground="{DynamicResource SurfaceAltBrush}"
+                                  HorizontalGridLinesBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="0"
+                                  RowHeight="38">
+
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Ürün Adı"
+                                    Binding="{Binding ItemName}" Width="3*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Padding" Value="12,0"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTextColumn Header="Mevcut Stok"
+                                    Binding="{Binding CurrentStock}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="FontSize" Value="14"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <DataGridTextColumn Header="Min. Eşik"
+                                    Binding="{Binding MinimumThreshold}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+
+                                <!-- Durum Badge -->
+                                <DataGridTemplateColumn Header="Durum" Width="120">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="10" Padding="10,3"
+                                                    HorizontalAlignment="Center" Margin="0,6">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource DangerBgBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="11" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text"       Value="✓ Yeterli"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLowStock}" Value="True">
+                                                                    <Setter Property="Text"       Value="⚠ Kritik"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ─────────────────────────────────────
+                 SEKME 2: RAPORLAR
+            ───────────────────────────────────────── -->
+            <TabItem Header="📊   Departman Raporu">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Filtre Paneli -->
+                    <Border Grid.Row="0" Style="{StaticResource CardBorder}"
+                            Margin="0,0,0,10">
+                        <WrapPanel>
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="Departman" FontWeight="SemiBold"
+                                           FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="CmbReportDepartment" Width="200"
+                                          Style="{StaticResource ModernCombo}"
+                                          DisplayMemberPath="Name" SelectedValuePath="Id"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="Başlangıç" FontWeight="SemiBold"
+                                           FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+                                <DatePicker x:Name="DpStart" Width="160"
+                                            FontSize="13"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="Bitiş" FontWeight="SemiBold"
+                                           FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+                                <DatePicker x:Name="DpEnd" Width="160"
+                                            FontSize="13"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <Button Content="🔍  Raporu Getir"
+                                        Style="{StaticResource BtnPrimary}"
+                                        Click="BtnReport_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnPrint" Content="🖨  Yazdır"
+                                        Style="{StaticResource BtnPrimary}"
+                                        Click="BtnPrint_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnWord" Content="📄  Word Formu Oluştur"
+                                        Style="{StaticResource BtnGhost}"
+                                        Click="BtnWord_Click"/>
+                            </StackPanel>
+                        </WrapPanel>
+                    </Border>
+
+                    <!-- Rapor DataGrid -->
+                    <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="0">
+                        <DataGrid x:Name="DgReport"
+                                  AutoGenerateColumns="False"
+                                  CanUserAddRows="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  MouseDoubleClick="DgReport_MouseDoubleClick"
+                                  GridLinesVisibility="Horizontal"
+                                  HeadersVisibility="Column"
+                                  Background="{DynamicResource SurfaceBrush}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  RowBackground="{DynamicResource SurfaceBrush}"
+                                  AlternatingRowBackground="{DynamicResource SurfaceAltBrush}"
+                                  HorizontalGridLinesBrush="{DynamicResource BorderBrush}"
+                                  BorderThickness="0"
+                                  RowHeight="36">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Tarih"
+                                    Binding="{Binding TransactionDate, Converter={StaticResource UtcToLocal}, StringFormat='dd.MM.yyyy  HH:mm'}"
+                                    Width="160"/>
+                                <DataGridTextColumn Header="Ürün"
+                                    Binding="{Binding Item.ItemName}" Width="3*"/>
+                                <DataGridTemplateColumn Header="Tür" Width="120">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="10" Padding="10,3"
+                                                    HorizontalAlignment="Center" Margin="0,5">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding TransactionType}" Value="StockOut">
+                                                                <Setter Property="Background" Value="{DynamicResource WarningBgBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock FontSize="11" FontWeight="Bold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text"       Value="⬆ Giriş"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding TransactionType}" Value="StockOut">
+                                                                    <Setter Property="Text"       Value="⬇ Çıkış"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Miktar"
+                                    Binding="{Binding Quantity}" Width="*">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="FontWeight"          Value="Bold"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <!-- Özet Satırı -->
+                    <Border Grid.Row="2" Background="{DynamicResource LightBlueBrush}"
+                            Padding="16,10" Margin="0,8,0,0" CornerRadius="6">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="Toplam Çıkış: " FontWeight="SemiBold"
+                                       Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtTotalOut" FontWeight="Bold" FontSize="15"
+                                       Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Center"
+                                       Margin="0,0,24,0"/>
+                            <TextBlock Text="Toplam Giriş: " FontWeight="SemiBold"
+                                       Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtTotalIn" FontWeight="Bold" FontSize="15"
+                                       Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center"
+                                       Margin="0,0,24,0"/>
+                            <TextBlock Text="İşlem Sayısı: " FontWeight="SemiBold"
+                                       Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtTxCount" FontWeight="Bold" FontSize="15"
+                                       Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- ══════════════════════════════════════════
+             STATUS BAR
+        ══════════════════════════════════════════ -->
+        <Border Grid.Row="2" Background="{DynamicResource HeaderBgBrush}" Padding="16,0">
+            <DockPanel>
+                <TextBlock x:Name="TxtStatus"
+                           Text="Hazır" Foreground="{DynamicResource HeaderSubTextBrush}"
+                           FontSize="11" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TxtClock"
+                           Foreground="{DynamicResource HeaderSubTextBrush}" FontSize="11"
+                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
