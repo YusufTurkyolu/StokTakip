@@ -263,6 +263,25 @@ public class InventoryService : IInventoryService
     }
 
     /// <summary>
+    /// Ürün bazlı rapor: belirli bir ürünün verilen tarih aralığındaki tüm
+    /// hareketlerini döner. Çıkışlarda Department dolu (hangi departmana gitti),
+    /// girişlerde Department null'dur (genel bütçe). UI bunu "Depo Girişi" gösterir.
+    /// </summary>
+    public async Task<List<Transaction>> GetTransactionsByItemAndDateAsync(
+        int itemId, DateTime startDate, DateTime endDate)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        return await db.Transactions
+            .Include(t => t.Item)
+            .Include(t => t.Department)
+            .Where(t => t.ItemId == itemId &&
+                        t.TransactionDate >= startDate &&
+                        t.TransactionDate <= endDate)
+            .OrderByDescending(t => t.TransactionDate)
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Aynı-Gün Düzenleme Kuralı:
     /// İş kuralları Business katmanında yaşar — UI sadece gösterim yapar.
     /// UI'da butonu disable etmek kullanıcı deneyimi içindir, güvenlik için değil.
@@ -310,5 +329,60 @@ public class InventoryService : IInventoryService
         db.InventoryItems.Remove(item);
         await db.SaveChangesAsync();
         return true;
+    }
+
+    /// <summary>
+    /// Seçilen işlemleri siler ve stok bakiyelerini geri alır.
+    /// Çıkış silindiyse stok artar, giriş silindiyse azalır.
+    /// Tüm işlem tek DB transaction'ında yapılır — ya hepsi ya hiçbiri.
+    /// </summary>
+    public async Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds)
+    {
+        var ids = transactionIds.ToList();
+        if (ids.Count == 0) return 0;
+
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        await using var dbTx = await db.Database.BeginTransactionAsync();
+
+        try
+        {
+            var transactions = await db.Transactions
+                .Include(t => t.Item)
+                .Where(t => ids.Contains(t.Id))
+                .ToListAsync();
+
+            if (transactions.Count == 0) return 0;
+
+            foreach (var tx in transactions)
+            {
+                if (tx.Item == null) continue;
+
+                // Stok geri alımı: çıkış silindiyse stok geri eklenir, giriş silindiyse düşülür
+                if (tx.TransactionType == TransactionType.StockOut)
+                {
+                    tx.Item.CurrentStock += tx.Quantity;
+                }
+                else // StockIn
+                {
+                    if (tx.Item.CurrentStock - tx.Quantity < 0)
+                        throw new InvalidOperationException(
+                            $"'{tx.Item.ItemName}' ürününün giriş kaydı silinemez: stok negatife düşer.\n" +
+                            $"Mevcut: {tx.Item.CurrentStock} adet, Giriş miktarı: {tx.Quantity} adet");
+
+                    tx.Item.CurrentStock -= tx.Quantity;
+                }
+            }
+
+            db.Transactions.RemoveRange(transactions);
+            await db.SaveChangesAsync();
+            await dbTx.CommitAsync();
+
+            return transactions.Count;
+        }
+        catch
+        {
+            await dbTx.RollbackAsync();
+            throw;
+        }
     }
 }

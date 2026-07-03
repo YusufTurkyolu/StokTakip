@@ -120,6 +120,12 @@
                                 <Button x:Name="BtnDeleteDepartment" Content="🗑 Departman Sil"
                                         Style="{StaticResource BtnGhost}"
                                         Click="BtnDeleteDepartment_Click" Margin="8,0,0,0"/>
+                                <!-- Çok kullanıcılı ortam: diğer bilgisayarların yaptığı
+                                     işlemler ancak yenilemeyle görünür -->
+                                <Button x:Name="BtnRefresh" Content="🔄 Yenile"
+                                        Style="{StaticResource BtnGhost}"
+                                        Click="BtnRefresh_Click" Margin="16,0,0,0"
+                                        ToolTip="Diğer bilgisayarların yaptığı işlemleri görmek için listeyi yenile"/>
                             </StackPanel>
 
                             <!-- Arama -->
@@ -267,7 +273,7 @@
             <!-- ─────────────────────────────────────
                  SEKME 2: RAPORLAR
             ───────────────────────────────────────── -->
-            <TabItem Header="📊   Departman Raporu">
+            <TabItem Header="📊   Raporlar">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -279,12 +285,41 @@
                     <Border Grid.Row="0" Style="{StaticResource CardBorder}"
                             Margin="0,0,0,10">
                         <WrapPanel>
+                            <!-- Rapor Türü seçici -->
                             <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="Rapor Türü" FontWeight="SemiBold"
+                                           FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="30">
+                                    <RadioButton x:Name="RbByDepartment" Content="Departmana Göre"
+                                                 GroupName="ReportMode" IsChecked="True"
+                                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                                 VerticalContentAlignment="Center" Margin="0,0,14,0"
+                                                 Checked="ReportMode_Changed"/>
+                                    <RadioButton x:Name="RbByItem" Content="Ürüne Göre"
+                                                 GroupName="ReportMode"
+                                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                                 VerticalContentAlignment="Center"
+                                                 Checked="ReportMode_Changed"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Departman filtresi (Departmana Göre modunda) -->
+                            <StackPanel x:Name="PnlDepartmentFilter" Margin="0,0,20,0">
                                 <TextBlock Text="Departman" FontWeight="SemiBold"
                                            FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
                                 <ComboBox x:Name="CmbReportDepartment" Width="200"
                                           Style="{StaticResource ModernCombo}"
                                           DisplayMemberPath="Name" SelectedValuePath="Id"/>
+                            </StackPanel>
+
+                            <!-- Ürün filtresi (Ürüne Göre modunda) -->
+                            <StackPanel x:Name="PnlItemFilter" Margin="0,0,20,0" Visibility="Collapsed">
+                                <TextBlock Text="Ürün" FontWeight="SemiBold"
+                                           FontSize="12" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="CmbReportItem" Width="200"
+                                          Style="{StaticResource ModernCombo}"
+                                          IsTextSearchEnabled="True"
+                                          DisplayMemberPath="ItemName" SelectedValuePath="Id"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,20,0">
                                 <TextBlock Text="Başlangıç" FontWeight="SemiBold"
@@ -307,7 +342,13 @@
                                         Click="BtnPrint_Click" Margin="0,0,8,0"/>
                                 <Button x:Name="BtnWord" Content="📄  Word Formu Oluştur"
                                         Style="{StaticResource BtnGhost}"
-                                        Click="BtnWord_Click"/>
+                                        Click="BtnWord_Click" Margin="0,0,16,0"/>
+                                <Button x:Name="BtnDeleteSelected" Content="🗑  Seçili İşlemleri Sil"
+                                        Style="{StaticResource BtnDanger}"
+                                        Click="BtnDeleteSelected_Click" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnDeleteAll" Content="🗑  Tümünü Sil"
+                                        Style="{StaticResource BtnDanger}"
+                                        Click="BtnDeleteAll_Click"/>
                             </StackPanel>
                         </WrapPanel>
                     </Border>
@@ -318,7 +359,7 @@
                                   AutoGenerateColumns="False"
                                   CanUserAddRows="False"
                                   IsReadOnly="True"
-                                  SelectionMode="Single"
+                                  SelectionMode="Extended"
                                   MouseDoubleClick="DgReport_MouseDoubleClick"
                                   GridLinesVisibility="Horizontal"
                                   HeadersVisibility="Column"
@@ -333,8 +374,11 @@
                                 <DataGridTextColumn Header="Tarih"
                                     Binding="{Binding TransactionDate, Converter={StaticResource UtcToLocal}, StringFormat='dd.MM.yyyy  HH:mm'}"
                                     Width="160"/>
-                                <DataGridTextColumn Header="Ürün"
+                                <DataGridTextColumn x:Name="ColReportItem" Header="Ürün"
                                     Binding="{Binding Item.ItemName}" Width="3*"/>
+                                <DataGridTextColumn x:Name="ColReportDepartment" Header="Departman"
+                                    Binding="{Binding Department.Name, FallbackValue='Stok Girişi', TargetNullValue='Stok Girişi'}"
+                                    Width="3*" Visibility="Collapsed"/>
                                 <DataGridTemplateColumn Header="Tür" Width="120">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -404,6 +448,31 @@
                 </Grid>
             </TabItem>
         </TabControl>
+
+        <!-- ══════════════════════════════════════════
+             TOAST BİLDİRİM PANELİ
+        ══════════════════════════════════════════ -->
+        <Border x:Name="ToastPanel" Grid.Row="1"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Margin="0,0,0,18" Panel.ZIndex="100"
+                CornerRadius="8" Padding="18,12"
+                Opacity="0" IsHitTestVisible="False"
+                RenderTransformOrigin="0.5,1">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="ToastTranslate" Y="20"/>
+            </Border.RenderTransform>
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" Opacity="0.25"
+                                  BlurRadius="16" ShadowDepth="4"/>
+            </Border.Effect>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="ToastIcon" FontSize="16"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock x:Name="ToastMessage" FontSize="13" FontWeight="SemiBold"
+                           Foreground="White" VerticalAlignment="Center"
+                           MaxWidth="500" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
 
         <!-- ══════════════════════════════════════════
              STATUS BAR

@@ -13,8 +13,10 @@ public interface IInventoryService
     Task<StockOperationResult> StockOutAsync(int itemId, int departmentId, int quantity);
     Task<List<InventoryItem>> GetLowStockItemsAsync();
     Task<List<Transaction>> GetTransactionsByDepartmentAndDateAsync(int departmentId, DateTime startDate, DateTime endDate);
+    Task<List<Transaction>> GetTransactionsByItemAndDateAsync(int itemId, DateTime startDate, DateTime endDate);
     Task<bool> UpdateTransactionAsync(int transactionId, int newQuantity);
     Task<bool> DeleteItemAsync(int itemId);
+    Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds);
 }
 
 // Result Pattern: exception fırlatmak yerine kontrollü başarı/hata nesnesi döner.

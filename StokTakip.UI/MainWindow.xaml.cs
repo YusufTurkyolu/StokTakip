@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using StokTakip.Business;
@@ -20,10 +22,18 @@ public partial class MainWindow : Window
     // Saat güncelleyici
     private readonly DispatcherTimer _clockTimer;
 
+    // Toast bildirim zamanlayıcı
+    private readonly DispatcherTimer _toastTimer;
+
+    // Rapor türü RadioButton'ları XAML parse edilirken Checked olayını tetikler;
+    // o an henüz oluşmamış kontrollere erişmemek için hazır olana kadar handler'ı atlarız.
+    private bool _reportUiReady;
+
     public MainWindow(IInventoryService service)
     {
         _service = service;
         InitializeComponent();
+        _reportUiReady = true;
 
         TxtUserName.Text = $"👤 {Environment.UserName}";
         UpdateThemeIcon();
@@ -33,6 +43,9 @@ public partial class MainWindow : Window
         _clockTimer.Tick += (_, _) => TxtClock.Text = DateTime.Now.ToString("dd.MM.yyyy  HH:mm:ss");
         _clockTimer.Start();
         TxtClock.Text = DateTime.Now.ToString("dd.MM.yyyy  HH:mm:ss");
+
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _toastTimer.Tick += (_, _) => HideToast();
     }
 
     protected override async void OnContentRendered(EventArgs e)
@@ -53,15 +66,15 @@ public partial class MainWindow : Window
             await RefreshDepartmentsAsync();
             await RefreshInventoryAsync();
 
-            DpStart.SelectedDate = DateTime.Today.AddMonths(-1);
-            DpEnd.SelectedDate = DateTime.Today;
+            DpStart.SelectedDate = DateTime.Today.AddDays(-7); // varsayılan: 1 hafta öncesi
+            DpEnd.SelectedDate = DateTime.Today;               // varsayılan: bugün
 
             SetStatus("Hazır");
         }
         catch (Exception ex)
         {
             SetStatus("Bağlantı hatası!");
-            ShowError("Veritabanına bağlanılamadı", ex.Message);
+            ShowToast($"Veritabanına bağlanılamadı: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -89,6 +102,15 @@ public partial class MainWindow : Window
         var items = await _service.GetAllItemsAsync();
         _allItems = items.Select(i => new InventoryItemViewModel(i)).ToList();
         ApplyFilter(filter);
+
+        // Ürün bazlı rapor ComboBox'ını da tazele (mevcut seçim korunur)
+        var selectedItemId = CmbReportItem.SelectedValue as int?;
+        CmbReportItem.ItemsSource = _allItems;
+        if (selectedItemId is int iid && _allItems.Any(i => i.Id == iid))
+            CmbReportItem.SelectedValue = iid;
+        else if (_allItems.Any())
+            CmbReportItem.SelectedIndex = 0;
+
         await RefreshLowStockPanelAsync();
     }
 
@@ -123,6 +145,25 @@ public partial class MainWindow : Window
     // TOOLBAR BUTONLARI
     // ─────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Elle yenileme — program birden çok bilgisayardan aynı veritabanını kullandığı
+    /// için diğer kullanıcıların işlemleri ancak yenilemeyle bu ekrana yansır.
+    /// </summary>
+    private async void BtnRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        SetStatus("Yenileniyor...");
+        try
+        {
+            await RefreshDepartmentsAsync();
+            await RefreshInventoryAsync(TxtSearch.Text);
+            ShowToast("Liste güncellendi.", ToastType.Info);
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Yenileme başarısız: {ex.Message}", ToastType.Error);
+        }
+    }
+
     private async void BtnAddItem_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new AddItemDialog { Owner = this };
@@ -133,12 +174,11 @@ public partial class MainWindow : Window
         {
             await _service.AddItemAsync(dialog.ItemName, dialog.InitialStock, dialog.MinThreshold);
             await RefreshInventoryAsync(TxtSearch.Text);
-            SetStatus($"'{dialog.ItemName}' başarıyla eklendi.");
+            ShowToast($"'{dialog.ItemName}' başarıyla eklendi.", ToastType.Success);
         }
         catch (InvalidOperationException ex)
         {
-            ShowError("Ürün Eklenemedi", ex.Message);
-            SetStatus("Hata.");
+            ShowToast($"Ürün eklenemedi: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -153,12 +193,11 @@ public partial class MainWindow : Window
             var dept = await _service.AddDepartmentAsync(dialog.DepartmentName);
             await RefreshDepartmentsAsync();
             CmbReportDepartment.SelectedValue = dept.Id; // yeni ekleneni seç — listeye girdiği görülsün
-            SetStatus($"'{dialog.DepartmentName}' departmanı eklendi.");
+            ShowToast($"'{dialog.DepartmentName}' departmanı eklendi.", ToastType.Success);
         }
         catch (InvalidOperationException ex)
         {
-            ShowError("Departman Eklenemedi", ex.Message);
-            SetStatus("Hata.");
+            ShowToast($"Departman eklenemedi: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -166,7 +205,7 @@ public partial class MainWindow : Window
     {
         if (!_departments.Any())
         {
-            ShowError("Departman Sil", "Silinecek departman yok.");
+            ShowToast("Silinecek departman yok.", ToastType.Warning);
             return;
         }
 
@@ -186,69 +225,86 @@ public partial class MainWindow : Window
         {
             await _service.DeleteDepartmentAsync(dialog.SelectedDepartmentId);
             await RefreshDepartmentsAsync();
-            SetStatus($"'{dialog.SelectedDepartmentName}' departmanı silindi.");
+            ShowToast($"'{dialog.SelectedDepartmentName}' departmanı silindi.", ToastType.Success);
         }
         catch (InvalidOperationException ex)
         {
             // İşlem geçmişi olan departman — servis katmanı korur
-            ShowError("Departman Silinemedi", ex.Message);
-            SetStatus("Silme engellendi.");
+            ShowToast($"Departman silinemedi: {ex.Message}", ToastType.Error);
         }
     }
 
     private async void BtnStockIn_Click(object sender, RoutedEventArgs e)
     {
-        if (DgInventory.SelectedItem is not InventoryItemViewModel vm) return;
-
-        var dialog = new StockOperationDialog("StockIn", vm.ItemName, vm.CurrentStock, _departments)
-        { Owner = this };
-        if (dialog.ShowDialog() != true) return;
-
-        SetStatus("Stok girişi kaydediliyor...");
-        var result = await _service.StockInAsync(vm.Id, dialog.Quantity);
-
-        if (result.Success)
+        if (DgInventory.SelectedItem is not InventoryItemViewModel vm)
         {
-            await RefreshInventoryAsync(TxtSearch.Text);
-            SetStatus($"{dialog.Quantity} adet '{vm.ItemName}' depoya girişi yapıldı.");
+            ShowToast("Önce listeden bir ürün seçin.", ToastType.Warning);
+            return;
         }
-        else
+
+        try
         {
-            ShowError("Stok Girişi Başarısız", result.ErrorMessage!);
-            SetStatus("İşlem başarısız.");
+            var dialog = new StockOperationDialog("StockIn", vm.ItemName, vm.CurrentStock, _departments)
+            { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+
+            SetStatus("Stok girişi kaydediliyor...");
+            var result = await _service.StockInAsync(vm.Id, dialog.Quantity);
+
+            if (result.Success)
+            {
+                await RefreshInventoryAsync(TxtSearch.Text);
+                ShowToast($"{dialog.Quantity} adet '{vm.ItemName}' depoya girişi yapıldı.", ToastType.Success);
+            }
+            else
+            {
+                ShowToast($"Stok girişi başarısız: {result.ErrorMessage}", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Stok girişi hatası: {ex.Message}", ToastType.Error);
+            SetStatus("Hata.");
         }
     }
 
     private async void BtnStockOut_Click(object sender, RoutedEventArgs e)
     {
-        if (DgInventory.SelectedItem is not InventoryItemViewModel vm) return;
-
-        var dialog = new StockOperationDialog("StockOut", vm.ItemName, vm.CurrentStock, _departments)
-        { Owner = this };
-        if (dialog.ShowDialog() != true) return;
-
-        SetStatus("Stok çıkışı kaydediliyor...");
-        var result = await _service.StockOutAsync(vm.Id, dialog.SelectedDepartmentId, dialog.Quantity);
-
-        if (result.Success)
+        if (DgInventory.SelectedItem is not InventoryItemViewModel vm)
         {
-            await RefreshInventoryAsync(TxtSearch.Text);
-            SetStatus($"{dialog.Quantity} adet '{vm.ItemName}' çıkışı yapıldı.");
+            ShowToast("Önce listeden bir ürün seçin.", ToastType.Warning);
+            return;
         }
-        else
+
+        try
         {
-            ShowError("Stok Çıkışı Başarısız", result.ErrorMessage!);
-            SetStatus("İşlem başarısız.");
+            var dialog = new StockOperationDialog("StockOut", vm.ItemName, vm.CurrentStock, _departments)
+            { Owner = this };
+            if (dialog.ShowDialog() != true) return;
+
+            SetStatus("Stok çıkışı kaydediliyor...");
+            var result = await _service.StockOutAsync(vm.Id, dialog.SelectedDepartmentId, dialog.Quantity);
+
+            if (result.Success)
+            {
+                await RefreshInventoryAsync(TxtSearch.Text);
+                ShowToast($"{dialog.Quantity} adet '{vm.ItemName}' çıkışı yapıldı.", ToastType.Success);
+            }
+            else
+            {
+                ShowToast($"Stok çıkışı başarısız: {result.ErrorMessage}", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Stok çıkışı hatası: {ex.Message}", ToastType.Error);
+            SetStatus("Hata.");
         }
     }
 
     private async void BtnDeleteItem_Click(object sender, RoutedEventArgs e)
     {
         if (DgInventory.SelectedItem is not InventoryItemViewModel vm) return;
-
-        // PIN Koruması
-        var pin = new PinDialog { Owner = this };
-        if (pin.ShowDialog() != true) return;
 
         var confirm = MessageBox.Show(
             $"'{vm.ItemName}' ürününü ve tüm işlem geçmişini silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.",
@@ -263,12 +319,11 @@ public partial class MainWindow : Window
         {
             await _service.DeleteItemAsync(vm.Id);
             await RefreshInventoryAsync(TxtSearch.Text);
-            SetStatus($"'{vm.ItemName}' silindi.");
+            ShowToast($"'{vm.ItemName}' başarıyla silindi.", ToastType.Success);
         }
         catch (Exception ex)
         {
-            ShowError("Silme Başarısız", ex.Message);
-            SetStatus("Hata.");
+            ShowToast($"Silme başarısız: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -293,17 +348,46 @@ public partial class MainWindow : Window
 
     private async void BtnReport_Click(object sender, RoutedEventArgs e) => await ShowReportAsync();
 
+    /// <summary>
+    /// Rapor türü değiştiğinde (Departmana Göre / Ürüne Göre) filtre alanlarını,
+    /// tablo sütunlarını ve butonları uygun moda çevirir.
+    /// </summary>
+    private void ReportMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_reportUiReady) return; // XAML parse anındaki ilk tetiklemeyi atla
+
+        bool byItem = RbByItem.IsChecked == true;
+
+        PnlDepartmentFilter.Visibility = byItem ? Visibility.Collapsed : Visibility.Visible;
+        PnlItemFilter.Visibility       = byItem ? Visibility.Visible   : Visibility.Collapsed;
+
+        // Tabloda ürün modunda "Departman" sütunu, departman modunda "Ürün" sütunu
+        ColReportItem.Visibility       = byItem ? Visibility.Collapsed : Visibility.Visible;
+        ColReportDepartment.Visibility = byItem ? Visibility.Visible   : Visibility.Collapsed;
+
+        // Word/Yazdır çıktısı departman talep formudur; ürün modunda anlamlı değil
+        BtnWord.IsEnabled  = !byItem;
+        BtnPrint.IsEnabled = !byItem;
+
+        // Önceki modun sonuçları karışmasın
+        DgReport.ItemsSource = null;
+        TxtTotalOut.Text = "—";
+        TxtTotalIn.Text  = "—";
+        TxtTxCount.Text  = "—";
+        SetStatus(byItem ? "Ürün bazlı rapor modu." : "Departman bazlı rapor modu.");
+    }
+
     private async Task ShowReportAsync()
     {
-        if (CmbReportDepartment.SelectedValue is not int deptId)
+        if (DpStart.SelectedDate is null || DpEnd.SelectedDate is null)
         {
-            ShowError("Filtre Hatası", "Lütfen bir departman seçin.");
+            ShowToast("Lütfen tarih aralığı seçin.", ToastType.Warning);
             return;
         }
 
-        if (DpStart.SelectedDate is null || DpEnd.SelectedDate is null)
+        if (DpStart.SelectedDate.Value.Date > DpEnd.SelectedDate.Value.Date)
         {
-            ShowError("Filtre Hatası", "Lütfen tarih aralığı seçin.");
+            ShowToast("Başlangıç tarihi, bitiş tarihinden sonra olamaz.", ToastType.Warning);
             return;
         }
 
@@ -313,9 +397,30 @@ public partial class MainWindow : Window
         var start = DateTime.SpecifyKind(DpStart.SelectedDate.Value.Date, DateTimeKind.Local).ToUniversalTime();
         var end   = DateTime.SpecifyKind(DpEnd.SelectedDate.Value.Date.AddDays(1).AddSeconds(-1), DateTimeKind.Local).ToUniversalTime();
 
-        SetStatus("Rapor hazırlanıyor...");
-        var transactions = await _service.GetTransactionsByDepartmentAndDateAsync(deptId, start, end);
-        var list = transactions.ToList();
+        List<Transaction> list;
+
+        if (RbByItem.IsChecked == true)
+        {
+            // Ürün bazlı: seçili ürün hangi departmanlara gitti / ne zaman girdi
+            if (CmbReportItem.SelectedValue is not int itemId)
+            {
+                ShowToast("Lütfen bir ürün seçin.", ToastType.Warning);
+                return;
+            }
+            SetStatus("Rapor hazırlanıyor...");
+            list = (await _service.GetTransactionsByItemAndDateAsync(itemId, start, end)).ToList();
+        }
+        else
+        {
+            // Departman bazlı: seçili departmana giden ürünler
+            if (CmbReportDepartment.SelectedValue is not int deptId)
+            {
+                ShowToast("Lütfen bir departman seçin.", ToastType.Warning);
+                return;
+            }
+            SetStatus("Rapor hazırlanıyor...");
+            list = (await _service.GetTransactionsByDepartmentAndDateAsync(deptId, start, end)).ToList();
+        }
 
         DgReport.ItemsSource = list;
 
@@ -326,7 +431,7 @@ public partial class MainWindow : Window
         TxtTotalIn.Text  = totalIn.ToString("N0")  + " adet";
         TxtTxCount.Text  = list.Count.ToString("N0") + " işlem";
 
-        SetStatus($"Rapor hazır — {list.Count} işlem bulundu.");
+        ShowToast($"Rapor hazır — {list.Count} işlem bulundu.", ToastType.Info);
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -348,12 +453,76 @@ public partial class MainWindow : Window
             await _service.UpdateTransactionAsync(tx.Id, dialog.NewQuantity);
             await RefreshInventoryAsync(TxtSearch.Text); // düzenleme stoku değiştirmiş olabilir
             await ShowReportAsync();                      // raporu tazele
-            SetStatus("İşlem güncellendi.");
+            ShowToast("İşlem başarıyla güncellendi.", ToastType.Success);
         }
         catch (InvalidOperationException ex)
         {
-            ShowError("İşlem Düzenlenemedi", ex.Message);
-            SetStatus("Hata.");
+            ShowToast($"İşlem düzenlenemedi: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // İŞLEM SİLME — Seçili veya tümü (stok bakiyeleri otomatik geri alınır)
+    // ─────────────────────────────────────────────────────────────────
+
+    private async void BtnDeleteSelected_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = DgReport.SelectedItems.Cast<Transaction>().ToList();
+        if (selected.Count == 0)
+        {
+            ShowToast("Lütfen silmek istediğiniz işlemleri seçin.", ToastType.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"{selected.Count} adet işlemi silmek istediğinizden emin misiniz?\n\n" +
+            "Stok bakiyeleri otomatik olarak geri alınacaktır.\nBu işlem geri alınamaz.",
+            "İşlem Silme Onayı",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        await DeleteTransactionsAsync(selected.Select(t => t.Id));
+    }
+
+    private async void BtnDeleteAll_Click(object sender, RoutedEventArgs e)
+    {
+        if (DgReport.ItemsSource is not List<Transaction> transactions || !transactions.Any())
+        {
+            ShowToast("Silinecek işlem yok. Önce raporu getirin.", ToastType.Warning);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"Rapordaki {transactions.Count} işlemin tamamını silmek istediğinizden emin misiniz?\n\n" +
+            "Stok bakiyeleri otomatik olarak geri alınacaktır.\nBu işlem geri alınamaz.",
+            "Toplu Silme Onayı",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        await DeleteTransactionsAsync(transactions.Select(t => t.Id));
+    }
+
+    private async Task DeleteTransactionsAsync(IEnumerable<int> ids)
+    {
+        SetStatus("İşlemler siliniyor...");
+        try
+        {
+            var count = await _service.DeleteTransactionsAsync(ids);
+            await RefreshInventoryAsync(TxtSearch.Text);
+            await ShowReportAsync();
+            ShowToast($"{count} işlem başarıyla silindi.", ToastType.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ShowToast($"Silme başarısız: {ex.Message}", ToastType.Error);
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Hata: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -363,13 +532,9 @@ public partial class MainWindow : Window
 
     private void BtnPrint_Click(object sender, RoutedEventArgs e)
     {
-        // PIN Koruması — Word çıktısıyla aynı politika
-        var pin = new PinDialog { Owner = this };
-        if (pin.ShowDialog() != true) return;
-
         if (DgReport.ItemsSource is not List<Transaction> transactions || !transactions.Any())
         {
-            ShowError("Yazdırma", "Önce raporu getirin.");
+            ShowToast("Önce raporu getirin.", ToastType.Warning);
             return;
         }
 
@@ -380,18 +545,14 @@ public partial class MainWindow : Window
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // WORD FORMU — "Bilgi İşlem Malzeme Alım Formu" (PIN korumalı)
+    // WORD FORMU — "Bilgi İşlem Malzeme Alım Formu"
     // ─────────────────────────────────────────────────────────────────
 
     private void BtnWord_Click(object sender, RoutedEventArgs e)
     {
-        // PIN Koruması
-        var pin = new PinDialog { Owner = this };
-        if (pin.ShowDialog() != true) return;
-
         if (DgReport.ItemsSource is not List<Transaction> transactions || !transactions.Any())
         {
-            ShowError("Word Formu", "Önce raporu getirin.");
+            ShowToast("Önce raporu getirin.", ToastType.Warning);
             return;
         }
 
@@ -410,15 +571,11 @@ public partial class MainWindow : Window
         try
         {
             WordReportExporter.Export(dlg.FileName, deptName, transactions);
-
-            SetStatus($"Word formu kaydedildi: {dlg.FileName}");
-            MessageBox.Show("Malzeme alım formu başarıyla kaydedildi.", "Başarılı",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowToast("Malzeme alım formu başarıyla kaydedildi.", ToastType.Success);
         }
         catch (Exception ex)
         {
-            ShowError("Word Formu Hatası", ex.Message);
-            SetStatus("Word hatası.");
+            ShowToast($"Word formu hatası: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -428,8 +585,61 @@ public partial class MainWindow : Window
 
     private void SetStatus(string message) => TxtStatus.Text = message;
 
-    private static void ShowError(string title, string message)
-        => MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+    // ─────────────────────────────────────────────────────────────────
+    // TOAST BİLDİRİM SİSTEMİ
+    // ─────────────────────────────────────────────────────────────────
+
+    private enum ToastType { Success, Error, Warning, Info }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        // Zamanlayıcıyı sıfırla (üst üste gelen bildirimler için)
+        _toastTimer.Stop();
+
+        // Tür bazlı ikon ve renk
+        (string icon, Color color) = type switch
+        {
+            ToastType.Success => ("✓", (Color)ColorConverter.ConvertFromString("#27AE60")),
+            ToastType.Error   => ("✕", (Color)ColorConverter.ConvertFromString("#C0392B")),
+            ToastType.Warning => ("⚠", (Color)ColorConverter.ConvertFromString("#E67E22")),
+            ToastType.Info    => ("ℹ", (Color)ColorConverter.ConvertFromString("#2E6DA4")),
+            _                 => ("ℹ", (Color)ColorConverter.ConvertFromString("#2E6DA4"))
+        };
+
+        ToastIcon.Text = icon;
+        ToastMessage.Text = message;
+        ToastPanel.Background = new SolidColorBrush(color);
+
+        // Durum çubuğunu da güncelle (kalıcı referans)
+        SetStatus(message);
+
+        // Giriş animasyonu: aşağıdan kayarak gelir + fade in
+        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(250))
+        { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+
+        var slideIn = new DoubleAnimation(20, 0, TimeSpan.FromMilliseconds(300))
+        { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+
+        ToastPanel.BeginAnimation(OpacityProperty, fadeIn);
+        ToastTranslate.BeginAnimation(TranslateTransform.YProperty, slideIn);
+
+        _toastTimer.Start();
+    }
+
+    private void HideToast()
+    {
+        _toastTimer.Stop();
+
+        // Çıkış animasyonu: yukarı kayarak kaybolur + fade out
+        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300))
+        { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+
+        var slideOut = new DoubleAnimation(0, -15, TimeSpan.FromMilliseconds(300))
+        { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+
+        ToastPanel.BeginAnimation(OpacityProperty, fadeOut);
+        ToastTranslate.BeginAnimation(TranslateTransform.YProperty, slideOut);
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // TEMA (AÇIK / KOYU)

@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# SQLite veritabani dosyalari (calisma verisi, repoya girmez)
+*.db
+*.db-shm
+*.db-wal

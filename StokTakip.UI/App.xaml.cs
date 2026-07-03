@@ -20,11 +20,22 @@ public partial class App : Application
         var services = new ServiceCollection();
 
         // IDbContextFactory — thread-safe context yönetimi.
-        // DB yolu MUTLAK: exe'nin yanındaki stok.db her zaman kullanılır.
-        // (Göreli yol, uygulama farklı bir çalışma diziniyle başlatıldığında
-        // başka klasörde ikinci bir veritabanı oluşmasına yol açıyordu.)
-        // Üretime geçişte bu satırı SQL Server connection string ile değiştir:
-        // options.UseSqlServer("Server=...;Database=StokTakipDB;Trusted_Connection=True;")
+        //
+        // DAĞITIM MODELİ: exe sunucudaki paylaşılan bir klasöre kurulur, belediyedeki
+        // bilgisayarlar programı bu paylaşım üzerinden (UNC yolu) çalıştırır.
+        // DB yolu MUTLAK ve exe'nin yanındadır: böylece tüm istemciler sunucudaki
+        // AYNI stok.db dosyasını kullanır — herkes aynı veriyi görür.
+        //
+        // Çok kullanıcılı erişim güvenceleri:
+        //   - CurrentStock [ConcurrencyCheck] + retry (InventoryService) → veri tutarlılığı
+        //   - Microsoft.Data.Sqlite varsayılan 30 sn busy-timeout → "database is locked"
+        //     yerine kilidin açılması beklenir
+        //   - journal_mode=DELETE (aşağıda) → WAL modu ağ paylaşımında birden çok
+        //     makineyle ÇALIŞMAZ (paylaşılan bellek ister); DELETE modu SMB'de güvenlidir
+        //
+        // Kullanıcı sayısı artar ve kilitlenme sorunları görülürse SQL Server Express'e
+        // geçiş için bu satırı değiştirmek yeterli:
+        // options.UseSqlServer("Server=SUNUCU;Database=StokTakipDB;Trusted_Connection=True;")
         var dbPath = System.IO.Path.Combine(AppContext.BaseDirectory, "stok.db");
         services.AddDbContextFactory<AppDbContext>(options =>
             options.UseSqlite($"Data Source={dbPath}")
@@ -38,13 +49,19 @@ public partial class App : Application
 
         Services = services.BuildServiceProvider();
 
-        // Migration'ları uygula — veritabanı yoksa oluşturur, varsa günceller
-        // Seed data da bu adımda eklenir
+        // Migration'ları uygula — veritabanı yoksa oluşturur, varsa günceller.
+        // Birden çok istemci aynı anda açılırsa SQLite kilidi ikinciyi bekletir;
+        // migration'lar zaten uygulanmışsa ikinci istemci hiçbir şey yapmaz.
         try
         {
             var factory = Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
             using var db = factory.CreateDbContext();
             db.Database.Migrate();
+
+            // Ağ paylaşımı güvencesi: WAL modu tek makinede hızlıdır ama SMB üzerinden
+            // birden çok makine erişince bozulmaya yol açar (paylaşılan bellek gerektirir).
+            // DB dosyası daha önce WAL'e alınmış olsa bile burada DELETE moduna sabitlenir.
+            db.Database.ExecuteSqlRaw("PRAGMA journal_mode=DELETE;");
         }
         catch (Exception ex)
         {

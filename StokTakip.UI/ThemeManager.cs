@@ -8,14 +8,18 @@ namespace StokTakip.UI;
 /// Renkler Themes/LightTheme.xaml ve Themes/DarkTheme.xaml içinde aynı anahtarlarla
 /// tanımlıdır; kontroller bunlara DynamicResource ile bağlandığı için sözlük
 /// değiştirildiği an tüm arayüz yeni renklere geçer.
-/// Seçilen tema uygulama klasöründe bir dosyaya yazılır, sonraki açılışta hatırlanır.
+/// Seçilen tema KULLANICININ KENDİ profil klasörüne (%LocalAppData%\StokTakip)
+/// yazılır: program sunucudaki paylaşımdan çalıştığı için exe klasörü tüm
+/// kullanıcılarda ortaktır — oraya yazılsaydı herkes birbirinin temasını değiştirir,
+/// salt-okunur paylaşımda ise kayıt hiç yapılamazdı.
 /// </summary>
 public static class ThemeManager
 {
     public enum AppTheme { Light, Dark }
 
-    private static readonly string SettingsPath =
-        Path.Combine(AppContext.BaseDirectory, "theme.setting");
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "StokTakip", "theme.setting");
 
     public static AppTheme Current { get; private set; } = AppTheme.Light;
 
@@ -54,7 +58,11 @@ public static class ThemeManager
 
         Current = theme;
 
-        try { File.WriteAllText(SettingsPath, theme.ToString()); }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+            File.WriteAllText(SettingsPath, theme.ToString());
+        }
         catch { /* kaydedilemezse tercih bu oturumda geçerli olur */ }
     }
 }
