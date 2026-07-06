@@ -7,6 +7,8 @@
   <ItemGroup>
     <!-- Word formu şablonu — exe'nin yanına kopyalanır -->
     <None Update="Templates\MalzemeAlimFormu.docx" CopyToOutputDirectory="PreserveNewest" />
+    <!-- İstemci bilgisayarlarda masaüstü kısayolu oluşturan kurulum betiği -->
+    <None Update="KisayolOlustur.bat" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
