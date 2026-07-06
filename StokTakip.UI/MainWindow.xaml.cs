@@ -25,6 +25,12 @@ public partial class MainWindow : Window
     // Toast bildirim zamanlayıcı
     private readonly DispatcherTimer _toastTimer;
 
+    // Otomatik yenileme — program birden çok bilgisayardan aynı veritabanını
+    // kullandığı için diğer kullanıcıların işlemleri en geç 15 sn içinde
+    // bu ekrana da yansır (elle yenileme gerekmez).
+    private readonly DispatcherTimer _autoRefreshTimer;
+    private bool _autoRefreshBusy;
+
     // Rapor türü RadioButton'ları XAML parse edilirken Checked olayını tetikler;
     // o an henüz oluşmamış kontrollere erişmemek için hazır olana kadar handler'ı atlarız.
     private bool _reportUiReady;
@@ -46,6 +52,10 @@ public partial class MainWindow : Window
 
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         _toastTimer.Tick += (_, _) => HideToast();
+
+        _autoRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _autoRefreshTimer.Tick += async (_, _) => await AutoRefreshAsync();
+        _autoRefreshTimer.Start();
     }
 
     protected override async void OnContentRendered(EventArgs e)
@@ -116,10 +126,21 @@ public partial class MainWindow : Window
 
     private void ApplyFilter(string filter)
     {
-        DgInventory.ItemsSource = string.IsNullOrWhiteSpace(filter)
+        // ItemsSource her seferinde yeni listeyle değiştiği için seçim normalde
+        // kaybolur. Otomatik yenileme 15 sn'de bir çalıştığından bu kabul edilemez:
+        // kullanıcı tam stok çıkışı yapacakken seçimi uçmamalı. Id üzerinden
+        // eski seçim yeni listede bulunup geri uygulanır.
+        var selectedId = (DgInventory.SelectedItem as InventoryItemViewModel)?.Id;
+
+        var list = string.IsNullOrWhiteSpace(filter)
             ? _allItems
             : _allItems.Where(i => i.ItemName.Contains(filter, StringComparison.OrdinalIgnoreCase))
                        .ToList();
+
+        DgInventory.ItemsSource = list;
+
+        if (selectedId is int id)
+            DgInventory.SelectedItem = list.FirstOrDefault(i => i.Id == id);
     }
 
     private async Task RefreshLowStockPanelAsync()
@@ -146,21 +167,30 @@ public partial class MainWindow : Window
     // ─────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Elle yenileme — program birden çok bilgisayardan aynı veritabanını kullandığı
-    /// için diğer kullanıcıların işlemleri ancak yenilemeyle bu ekrana yansır.
+    /// 15 sn'de bir sessiz otomatik yenileme. Bilinçli olarak toast/durum mesajı
+    /// göstermez: kullanıcı çalışırken 15 saniyede bir bildirim çıkması rahatsız
+    /// eder. Hata da sessiz geçilir — ağ paylaşımındaki anlık bir kesinti sürekli
+    /// hata bildirimi üretmesin; kullanıcı bir işlem yaptığında zaten o işlemin
+    /// kendi hata mesajını görür. Rapor tablosuna dokunulmaz: rapor, kullanıcının
+    /// istediği anın görüntüsüdür ve satır seçip silme yaparken altından
+    /// değişmemelidir.
     /// </summary>
-    private async void BtnRefresh_Click(object sender, RoutedEventArgs e)
+    private async Task AutoRefreshAsync()
     {
-        SetStatus("Yenileniyor...");
+        if (_autoRefreshBusy) return; // önceki tur bitmeden yenisi başlamasın
+        _autoRefreshBusy = true;
         try
         {
             await RefreshDepartmentsAsync();
             await RefreshInventoryAsync(TxtSearch.Text);
-            ShowToast("Liste güncellendi.", ToastType.Info);
         }
-        catch (Exception ex)
+        catch
         {
-            ShowToast($"Yenileme başarısız: {ex.Message}", ToastType.Error);
+            // sessiz — açıklama yukarıda
+        }
+        finally
+        {
+            _autoRefreshBusy = false;
         }
     }
 

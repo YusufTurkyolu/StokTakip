@@ -120,12 +120,6 @@
                                 <Button x:Name="BtnDeleteDepartment" Content="🗑 Departman Sil"
                                         Style="{StaticResource BtnGhost}"
                                         Click="BtnDeleteDepartment_Click" Margin="8,0,0,0"/>
-                                <!-- Çok kullanıcılı ortam: diğer bilgisayarların yaptığı
-                                     işlemler ancak yenilemeyle görünür -->
-                                <Button x:Name="BtnRefresh" Content="🔄 Yenile"
-                                        Style="{StaticResource BtnGhost}"
-                                        Click="BtnRefresh_Click" Margin="16,0,0,0"
-                                        ToolTip="Diğer bilgisayarların yaptığı işlemleri görmek için listeyi yenile"/>
                             </StackPanel>
 
                             <!-- Arama -->
