@@ -307,7 +307,7 @@ public partial class MainWindow : Window
         if (DgInventory.SelectedItem is not InventoryItemViewModel vm) return;
 
         var confirm = MessageBox.Show(
-            $"'{vm.ItemName}' ürününü ve tüm işlem geçmişini silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz.",
+            $"'{vm.ItemName}' ürününü silmek istediğinizden emin misiniz?",
             "Silme Onayı",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -320,6 +320,11 @@ public partial class MainWindow : Window
             await _service.DeleteItemAsync(vm.Id);
             await RefreshInventoryAsync(TxtSearch.Text);
             ShowToast($"'{vm.ItemName}' başarıyla silindi.", ToastType.Success);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // İşlem geçmişi olan ürün — servis katmanı korur
+            ShowToast($"Ürün silinemedi: {ex.Message}", ToastType.Error);
         }
         catch (Exception ex)
         {
@@ -511,7 +516,8 @@ public partial class MainWindow : Window
         SetStatus("İşlemler siliniyor...");
         try
         {
-            var count = await _service.DeleteTransactionsAsync(ids);
+            // Kim sildiğini denetim log'una yazmak için Windows kullanıcı adı gönderilir
+            var count = await _service.DeleteTransactionsAsync(ids, Environment.UserName);
             await RefreshInventoryAsync(TxtSearch.Text);
             await ShowReportAsync();
             ShowToast($"{count} işlem başarıyla silindi.", ToastType.Success);

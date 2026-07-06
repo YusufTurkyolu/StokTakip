@@ -320,11 +320,22 @@ public class InventoryService : IInventoryService
         return true;
     }
 
+    /// <summary>
+    /// Ürün silme — yalnızca hiç işlem görmemiş ürünler silinebilir (DeleteDepartmentAsync
+    /// ile aynı yaklaşım). İşlem geçmişi olan ürün silinseydi cascade tüm giriş/çıkış
+    /// kayıtlarını da silerdi; stok geçmişinin kalıcı kaybını önlemek için buna izin vermiyoruz.
+    /// </summary>
     public async Task<bool> DeleteItemAsync(int itemId)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
         var item = await db.InventoryItems.FindAsync(itemId);
         if (item == null) return false;
+
+        var hasTransactions = await db.Transactions.AnyAsync(t => t.ItemId == itemId);
+        if (hasTransactions)
+            throw new InvalidOperationException(
+                $"'{item.ItemName}' ürününe ait işlem kayıtları olduğu için silinemez.\n" +
+                "Yalnızca hiç işlem görmemiş (yanlışlıkla eklenmiş) ürünler silinebilir.");
 
         db.InventoryItems.Remove(item);
         await db.SaveChangesAsync();
@@ -334,9 +345,11 @@ public class InventoryService : IInventoryService
     /// <summary>
     /// Seçilen işlemleri siler ve stok bakiyelerini geri alır.
     /// Çıkış silindiyse stok artar, giriş silindiyse azalır.
-    /// Tüm işlem tek DB transaction'ında yapılır — ya hepsi ya hiçbiri.
+    /// Silinmeden önce her kaydın bir kopyası DeletedTransactionLogs tablosuna
+    /// (kim, ne zaman, ne sildi) yazılır — asıl kayıt kalıcı silinse de denetim
+    /// izi kalır. Tüm işlem tek DB transaction'ında yapılır — ya hepsi ya hiçbiri.
     /// </summary>
-    public async Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds)
+    public async Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds, string deletedBy)
     {
         var ids = transactionIds.ToList();
         if (ids.Count == 0) return 0;
@@ -348,10 +361,13 @@ public class InventoryService : IInventoryService
         {
             var transactions = await db.Transactions
                 .Include(t => t.Item)
+                .Include(t => t.Department)
                 .Where(t => ids.Contains(t.Id))
                 .ToListAsync();
 
             if (transactions.Count == 0) return 0;
+
+            var deletedAt = DateTime.UtcNow;
 
             foreach (var tx in transactions)
             {
@@ -371,6 +387,18 @@ public class InventoryService : IInventoryService
 
                     tx.Item.CurrentStock -= tx.Quantity;
                 }
+
+                db.DeletedTransactionLogs.Add(new DeletedTransactionLog
+                {
+                    OriginalTransactionId = tx.Id,
+                    ItemName = tx.Item.ItemName,
+                    DepartmentName = tx.Department?.Name,
+                    Quantity = tx.Quantity,
+                    TransactionType = tx.TransactionType,
+                    OriginalTransactionDate = tx.TransactionDate,
+                    DeletedBy = deletedBy,
+                    DeletedAt = deletedAt
+                });
             }
 
             db.Transactions.RemoveRange(transactions);

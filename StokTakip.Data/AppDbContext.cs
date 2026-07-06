@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems { get; set; }
     public DbSet<Department> Departments { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
+    public DbSet<DeletedTransactionLog> DeletedTransactionLogs { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -41,6 +42,13 @@ public class AppDbContext : DbContext
         // SQL'e bakan biri "0" yerine "StockOut" görür
         modelBuilder.Entity<Transaction>()
             .Property(t => t.TransactionType)
+            .HasConversion<string>();
+
+        // Denetim log tablosu da aynı okunabilirlik ilkesine tabi — bu tablo
+        // zaten bir SQLite tarayıcıyla elle incelenmek üzere var, int (0/1)
+        // yerine "StockIn"/"StockOut" görülmesi asıl amacı sağlar.
+        modelBuilder.Entity<DeletedTransactionLog>()
+            .Property(l => l.TransactionType)
             .HasConversion<string>();
 
         // Seed data bilinçli olarak YOK: program boş başlar, ürünler ve

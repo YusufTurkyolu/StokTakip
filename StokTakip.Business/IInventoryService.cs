@@ -16,7 +16,7 @@ public interface IInventoryService
     Task<List<Transaction>> GetTransactionsByItemAndDateAsync(int itemId, DateTime startDate, DateTime endDate);
     Task<bool> UpdateTransactionAsync(int transactionId, int newQuantity);
     Task<bool> DeleteItemAsync(int itemId);
-    Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds);
+    Task<int> DeleteTransactionsAsync(IEnumerable<int> transactionIds, string deletedBy);
 }
 
 // Result Pattern: exception fırlatmak yerine kontrollü başarı/hata nesnesi döner.
